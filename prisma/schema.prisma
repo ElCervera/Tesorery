@@ -1,0 +1,215 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Patronal {
+  id                 String               @id @default(cuid())
+  nombre             String
+  nit                String?              @unique
+  email              String?
+  telefono           String?
+  direccion          String?
+  contactoPrincipal  String?
+  periodicidadNomina PeriodicidadNomina
+  estado             PatronalEstado       @default(ACTIVA)
+  configuracionAhorro ConfiguracionAhorro?
+  lineasAhorro       LineaAhorro[]
+  lineasCredito      LineaCredito[]
+  afiliados          Afiliado[]
+  creditos           Credito[]
+  movimientos        Movimiento[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model ConfiguracionAhorro {
+  id                       String     @id @default(cuid())
+  patronalId               String     @unique
+  ahorroObligatorioPct     Decimal    @db.Decimal(5, 2)
+  aportePct                Decimal    @db.Decimal(5, 2)
+  ahorroVoluntarioHabilitado Boolean  @default(false)
+  ahorroVoluntarioPctMax   Decimal?   @db.Decimal(5, 2)
+  tipoCuota                TipoCuota  @default(PORCENTAJE)
+  cuotaFija                Decimal?   @db.Decimal(14, 2)
+  patronal                 Patronal   @relation(fields: [patronalId], references: [id], onDelete: Cascade)
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+}
+
+model LineaAhorro {
+  id         String   @id @default(cuid())
+  patronalId String
+  nombre     String
+  reglas     Json?
+  activa     Boolean  @default(true)
+  patronal   Patronal @relation(fields: [patronalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([patronalId])
+}
+
+model LineaCredito {
+  id        String   @id @default(cuid())
+  patronalId String
+  nombre    String
+  tasa      Decimal  @db.Decimal(5, 2)
+  plazoMin  Int
+  plazoMax  Int
+  montoMin  Decimal  @db.Decimal(14, 2)
+  montoMax  Decimal  @db.Decimal(14, 2)
+  garantias String?
+  activa    Boolean  @default(true)
+  patronal  Patronal @relation(fields: [patronalId], references: [id], onDelete: Cascade)
+  creditos  Credito[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patronalId])
+}
+
+model Afiliado {
+  id            String         @id @default(cuid())
+  patronalId    String
+  nombres       String
+  apellidos     String
+  documento     String
+  tipoDocumento String
+  email         String?
+  telefono      String?
+  salarioNeto   Decimal?       @db.Decimal(14, 2)
+  estado        AfiliadoEstado @default(ACTIVO)
+  fechaIngreso  DateTime
+  patronal      Patronal       @relation(fields: [patronalId], references: [id], onDelete: Cascade)
+  creditos      Credito[]
+  movimientos   Movimiento[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([patronalId])
+  @@index([documento])
+}
+
+model Credito {
+  id             String        @id @default(cuid())
+  patronalId     String
+  afiliadoId     String
+  lineaCreditoId String
+  monto          Decimal       @db.Decimal(14, 2)
+  plazo          Int
+  tasa           Decimal       @db.Decimal(5, 2)
+  fechaDesembolso DateTime
+  fechaFin       DateTime?
+  estado         EstadoCredito @default(VIGENTE)
+  patronal       Patronal      @relation(fields: [patronalId], references: [id], onDelete: Cascade)
+  afiliado       Afiliado      @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  lineaCredito   LineaCredito  @relation(fields: [lineaCreditoId], references: [id], onDelete: Cascade)
+  cuotas         CuotaCredito[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([patronalId])
+  @@index([afiliadoId])
+  @@index([lineaCreditoId])
+}
+
+model CuotaCredito {
+  id            String      @id @default(cuid())
+  creditoId     String
+  numeroCuota   Int
+  fechaPago     DateTime
+  monto         Decimal     @db.Decimal(14, 2)
+  estado        EstadoCuota @default(PENDIENTE)
+  fechaPagoReal DateTime?
+  credito       Credito     @relation(fields: [creditoId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([creditoId])
+}
+
+model Movimiento {
+  id            String          @id @default(cuid())
+  patronalId    String
+  afiliadoId    String
+  tipo          TipoMovimiento
+  origenTipo    OrigenTipo
+  origenId      String?
+  categoria     CategoriaMovimiento?
+  monto         Decimal         @db.Decimal(14, 2)
+  fecha         DateTime
+  descripcion   String?
+  referenciaExterna String?
+  patronal      Patronal        @relation(fields: [patronalId], references: [id], onDelete: Cascade)
+  afiliado      Afiliado        @relation(fields: [afiliadoId], references: [id], onDelete: Cascade)
+  createdAt     DateTime        @default(now())
+
+  @@index([patronalId])
+  @@index([afiliadoId])
+  @@index([fecha])
+}
+
+enum PeriodicidadNomina {
+  QUINCENAL
+  MENSUAL
+}
+
+enum PatronalEstado {
+  ACTIVA
+  INACTIVA
+}
+
+enum TipoCuota {
+  PORCENTAJE
+  FIJA
+}
+
+enum AfiliadoEstado {
+  ACTIVO
+  INACTIVO
+}
+
+enum EstadoCredito {
+  VIGENTE
+  MORA
+  PAGADO
+  CANCELADO
+}
+
+enum EstadoCuota {
+  PENDIENTE
+  PAGADO
+  MORA
+}
+
+enum TipoMovimiento {
+  APORTE
+  RETIRO
+  DESEMBOLSO
+  PAGO
+  INTERES
+  AJUSTE
+}
+
+enum OrigenTipo {
+  AHORRO
+  CREDITO
+}
+
+enum CategoriaMovimiento {
+  CAPITAL
+  INTERES
+  PENALIDAD
+  AJUSTE
+}
